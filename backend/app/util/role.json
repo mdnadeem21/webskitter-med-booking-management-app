@@ -1,0 +1,31 @@
+{
+    "admin": [
+        "create:doctor","read:doctor","update:doctor","delete:doctor",
+        "create:receptionist","read:receptionist","update:receptionist","delete:receptionist",
+        "create:patient","read:patient","update:patient","delete:patient",
+        "create:appointment","read:appointment","update:appointment","update:appointmentStatus","delete:appointment",
+        "create:clinic","read:clinic","update:clinic","delete:clinic",
+        "create:prescription","read:prescription","update:prescription","delete:prescription",
+        "create:department","read:department","update:department","delete:department",
+        "create:medical_record","read:medical_record","update:medical_record","delete:medical_record"
+    ],
+    "doctor": [
+        "read:doctor","update:doctor",
+        "read:patient","update:patient",
+        "create:appointment","read:appointment","update:appointment","update:appointmentStatus","delete:appointment",
+        "create:prescription","read:prescription","update:prescription","delete:prescription",
+        "read:medical_record","update:medical_record"
+    ],
+    "receptionist": [
+        "create:patient","read:patient",
+        "create:appointment","read:appointment","update:appointment","update:appointmentStatus","delete:appointment",
+        "read:doctor"
+    ],
+    "patient":[
+        "create:appointment","read:appointment","update:appointment","delete:appointment",
+        "read:doctor"
+    ]
+
+    
+}
+ 
