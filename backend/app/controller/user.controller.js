@@ -240,7 +240,7 @@ class UserController {
         });
       }
 
-      if (!user.isVerified) {
+      if (!user.isVerified && user.role == 'patient') {
         return res.status(403).json({
           status: false,
           message: "Email not verified. Please verify your email.",
