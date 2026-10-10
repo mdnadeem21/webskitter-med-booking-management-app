@@ -81,6 +81,96 @@ class DoctorController {
     }
   }
 
+  async loginDoctor(req,res){
+    try {
+      const { email, password } = req.body;
+
+      if (!email || !password) {
+        return res.status(400).json({
+          status: false,
+          message: "Email and password are required",
+        });
+      }
+
+      const doctor = await Doctor.findOne({ email });
+      if (!doctor) {
+        return res.status(401).json({
+          status: false,
+          message: "Invalid email or password",
+        });
+      }
+
+      const isMatch = await bcryptjs.compare(password, doctor.password);
+      if (!isMatch) {
+        return res.status(401).json({
+          status: false,
+          message: "Invalid password",
+        });
+      }
+
+      if (!doctor.isVerified && !doctor.role == 'doctor') {
+        return res.status(403).json({
+          status: false,
+          message: "Email not verified or you are not a doctor.",
+        });
+      }
+
+      // generate access token using jwt
+      const accessToken = jwt.sign(
+        {
+          id: doctor._id,
+          name: doctor.name,
+          email: doctor.email,
+          role: doctor.role,
+        },
+        process.env.JWT_SECRET || "jwt-secret-key",
+        { expiresIn: "1m" }
+      );
+
+      const refreshToken = jwt.sign(
+        {
+          id: doctor._id,
+          name: doctor.name,
+          email: doctor.email,
+          role: doctor.role,
+        },
+        process.env.JWT_SECRET || "jwt_secret_key",
+        { expiresIn: "7d" }
+      );
+
+      // hashed refresh token for security
+      const hashedRefreshToken = await bcryptjs.hash(refreshToken, 10);
+      // Store refresh token in the database
+      doctor.refreshToken = hashedRefreshToken;
+      await doctor.save();
+
+      const token = {
+        accessToken: accessToken,
+        refreshToken: refreshToken,
+      };
+
+      // set cookie for refresh token
+      res.cookie("accessToken", accessToken, {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production", // Set to true in production
+        sameSite: "strict",
+        maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
+      });
+
+      res.status(200).json({
+        status: true,
+        message: "Login successful",
+        data: { doctorId: doctor._id, email: doctor.email },
+        token,
+      });
+    } catch (error) {
+      console.log(err);
+      res.status(500).json({
+        status: false,
+        message: "Server error in login user",
+      });
+    }
+  }
   async getAllDoctors(req, res) {
     try {
       const doctors = await Doctor.find();
