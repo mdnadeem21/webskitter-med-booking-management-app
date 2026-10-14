@@ -1,4 +1,3 @@
-// src/components/Table.jsx — columns: [{key, label}], data: array of objects
 function Table({ columns, data }) {
     return (
       <div className="overflow-x-auto rounded-xl border border-gray-100">

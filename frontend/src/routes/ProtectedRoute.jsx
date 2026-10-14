@@ -4,10 +4,10 @@ import { Navigate } from "react-router-dom";
 
 const ProtectedRoute = ({ children }) => {
   // Redux se token — loadAuth() se refresh pe bhi restore hota hai
-  const { token } = useSelector((state) => state.auth);
+  const { user, accessToken } = useSelector((state) => state.auth);
 
-  // Token nahi → login pe bhej do
-  if (!token) return <Navigate to="/login" replace />;
+  
+  if (!user || !accessToken) return <Navigate to="/login" replace />;
   return children;
 };
 

@@ -1,4 +1,3 @@
-// src/components/StatCard.jsx — dashboard ke counts (total/today/upcoming)
 function StatCard({ label, value, icon, color = "blue" }) {
     const colors = {
       blue: "bg-blue-50 text-blue-600",

@@ -1,30 +1,49 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useSelector } from "react-redux";
 import Card from "../../components/Card";
 import Input from "../../components/Input";
 import Button from "../../components/Button";
+import { getMyPatientProfile, updateMyPatientProfile, changeMyPatientPassword } from "../../api/patientApi";
 
 function PatientProfile() {
   const { user } = useSelector(s => s.auth);
 
-  // ---------------- PROFILE DATA (dummy — Phase 6 me /me API se aayega) ----------------
+  
   const [data, setData] = useState({
-    name: user?.name || "Patient",
-    email: user?.email || "",
-    phone: "9876543210",
-    gender: "Male",
-    bloodGroup: "O+",
-    address: "MG Road, Bangalore, 560001",
-    dob: "1995-06-15",
+    name: "", email: "", phone: "", gender: "", bloodGroup: "", address: "", dob: "",
   });
+  const [loading, setLoading] = useState(true);
   const [photo, setPhoto] = useState(null);   // preview URL (Phase 6 me server URL)
+
+  useEffect(() => {
+    const fetchProfile = async () => {
+      try {
+        const res = await getMyPatientProfile();
+        const p = res.data.patient;
+        setData({
+          name: p.name || "",
+          email: p.email || "",
+          phone: p.phone || "",
+          gender: p.gender || "Male",
+          bloodGroup: p.bloodGroup || "",
+          address: p.address || "",       
+          dob: p.dateOfBirth ? new Date(p.dateOfBirth).toISOString().split("T")[0] : "",
+        });
+      } catch (err) {
+        console.error("Profile fetch failed:", err.message);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchProfile();
+  }, []);
 
   // ---------------- 3 MODES ----------------
   const [showEditForm, setShowEditForm] = useState(false);        // profile data edit
   const [showPasswordModal, setShowPasswordModal] = useState(false); // change password
   const [saving, setSaving] = useState(false);
 
-  // password modal ka apna state
+  // password modal state
   const [pwd, setPwd] = useState({ current: "", newPassword: "", confirm: "" });
   const [pwdError, setPwdError] = useState("");
 
@@ -36,7 +55,7 @@ function PatientProfile() {
       alert("Photo 2MB se chhoti honi chahiye");
       return;
     }
-    setPhoto(URL.createObjectURL(file));   // abhi sirf preview
+    setPhoto(URL.createObjectURL(file));   
     // ⏳ Phase 6: FormData me file → upload API → response ka URL save
   };
 
@@ -44,42 +63,47 @@ function PatientProfile() {
   const handleChange = e => setData({ ...data, [e.target.name]: e.target.value });
 
   const handleSaveProfile = async () => {
-    setSaving(true);
-    try {
-      // ⏳ Phase 6: PATCH /api/patient/me — body: data (email locked)
-      console.log("Profile update:", data);
-      alert("Profile updated (dummy)");
-      setShowEditForm(false);      // wapas read-only view
-    } finally {
-      setSaving(false);
-    }
+     setSaving(true);
+  try {
+    const res = await updateMyPatientProfile({
+      name: data.name.trim(),
+      phone: data.phone.trim(),
+      gender: data.gender,
+      bloodGroup: data.bloodGroup || "",
+      dateOfBirth: data.dob || undefined,   // khali toh mat bhejo
+      ...(data.address ? { address: data.address } : {}),   // model me ho toh hi
+    });
+    const p = res.data.patient;
+    setData(d => ({ ...d, name: p.name, phone: p.phone || "", bloodGroup: p.bloodGroup || "" }));
+    alert("Profile updated ✅");
+    setShowEditForm(false);
+  } catch (err) {
+    alert(err.message || "Update failed");
+  } finally {
+    setSaving(false);
+  }
   };
 
   // ---------------- CHANGE PASSWORD ----------------
   const handleChangePassword = async e => {
     e.preventDefault();
-    if (pwd.newPassword.length < 6) {
-      setPwdError("New password min 6 characters");
-      return;
-    }
-    if (pwd.newPassword !== pwd.confirm) {
-      setPwdError("New passwords do not match");
-      return;
-    }
-    setPwdError("");
-    try {
-      // ⏳ Phase 6: PATCH /api/patient/change-password
-      // body: { currentPassword: pwd.current, newPassword: pwd.newPassword }
-      console.log("Change password:", pwd);
-      alert("Password changed (dummy)");
-      setShowPasswordModal(false);
-      setPwd({ current: "", newPassword: "", confirm: "" });
-    } catch (err) {
-      setPwdError(err?.response?.data?.message || "Failed to change password");
-    }
+  if (pwd.newPassword.length < 8) return setPwdError("New password min 8 characters");
+  if (pwd.newPassword !== pwd.confirm) return setPwdError("New passwords do not match");
+  setPwdError("");
+  try {
+    await changeMyPatientPassword({
+      oldPassword: pwd.current,
+      newPassword: pwd.newPassword,
+    });
+    alert("Password changed ✅");
+    setShowPasswordModal(false);
+    setPwd({ current: "", newPassword: "", confirm: "" });
+  } catch (err) {
+    setPwdError(err.message || "Failed");
+  }
   };
 
-  // photo dikhane ke liye — ya toh uploaded photo ya first letter placeholder
+  
   const photoUrl = photo || user?.photoUrl || null;
 
   // read-only rows — DETAILS section me render hote hain
@@ -89,8 +113,9 @@ function PatientProfile() {
     { label: "Blood Group", value: data.bloodGroup },
     { label: "Date of Birth", value: data.dob },
     { label: "Address", value: data.address },
-  ].filter(r => r.value);   // khali values skip
+  ].filter(r => r.value);   
 
+  if (loading) return <div className="p-6 text-gray-500">Loading profile...</div>;
   return (
     <div className="p-6 max-w-3xl">
       <h1 className="text-2xl font-bold text-gray-800 mb-6">My Profile</h1>
@@ -112,7 +137,7 @@ function PatientProfile() {
               </div>
             )}
 
-            {/* 📷 PHOTO EDIT BUTTON — photo pe hi overlay, alag action */}
+            
             <label
               className="absolute -bottom-1 -right-1 bg-white border border-gray-200 rounded-full p-1.5 cursor-pointer shadow hover:bg-gray-50"
               title="Change photo"
@@ -127,7 +152,7 @@ function PatientProfile() {
             </label>
           </div>
 
-          {/* NAME + EMAIL */}
+          
           <div className="flex-1">
             <h2 className="text-xl font-semibold text-gray-800">{data.name}</h2>
             <p className="text-sm text-gray-400">{data.email}</p>
@@ -160,7 +185,7 @@ function PatientProfile() {
             ))}
           </div>
 
-          {/* 🔒 CHANGE PASSWORD — alag action, details ke neeche */}
+          
           <div className="mt-6 pt-4 border-t border-gray-100">
             <button
               onClick={() => setShowPasswordModal(true)}

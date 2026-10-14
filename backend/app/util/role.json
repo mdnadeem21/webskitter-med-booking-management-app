@@ -17,15 +17,24 @@
         "read:medical_record","update:medical_record"
     ],
     "receptionist": [
-        "create:patient","read:patient",
-        "create:appointment","read:appointment","update:appointment","update:appointmentStatus","delete:appointment",
-        "read:doctor"
+        "read:receptionist",
+        "update:receptionist",
+        "read:appointment",
+        "create:appointment",
+        "create:appointmentStatus",
+        "read:patient",
+        "update:patient",
+        "read:doctor",
+        "read:clinic",          
+        "read:dep artment"
     ],
     "patient":[
+        "read:patient","update:patient",
         "create:appointment","read:appointment","update:appointment","delete:appointment",
-        "read:doctor"
+        "create:appointmentStatus","update:appointmentStatus","read:doctor",
+        "read:clinic", "read:department"
     ]
 
-    
+     
 }
  

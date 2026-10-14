@@ -24,12 +24,10 @@ const clinicSchema = new mongoose.Schema({
     },
     services: [{
         type: String,
-        required: true
     }],
     openingHours:[
         {   
             type: String,
-            required: true
         }
     ],
     isActive:{

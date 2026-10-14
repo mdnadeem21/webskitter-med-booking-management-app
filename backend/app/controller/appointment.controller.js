@@ -1,11 +1,11 @@
 const Appointment = require("../model/appointment.model");
-
+const Patient = require("../model/patient.model");
 class appointmentController {
   
   async createAppointment(req, res) {
     try {
+      const patientId = req.user.role === "patient" ? req.user.id : req.body.patientId;
       const {
-        patientId,
         doctorId,
         clinicId,
         departmentId,
@@ -37,10 +37,11 @@ class appointmentController {
       const existingAppointment = await Appointment.findOne({
         patientId,
         doctorId,
-        appointmentDate,
-        startTime,
-        endTime,
         isDeleted: false,
+        appointmentDate,
+        status: { $in: ["PENDING", "CONFIRMED", "RESCHEDULED"] },
+        startTime: { $lt: endTime },      // overlap: existing start < new end
+        endTime: { $gt: startTime },
       });
       if (existingAppointment) {
         return res.status(400).json({
@@ -77,13 +78,16 @@ class appointmentController {
 
   async getAppointments(req, res) {
     try {
-      const appointments = await Appointment.find({ isDeleted: false });
-      if (appointments.length === 0) {
-        return res.status(404).json({
-          status: false,
-          message: "No appointments found",
-        });
-      }
+      const filter = { isDeleted: false };
+    // optional status query: /get/appointments?status=CONFIRMED
+    if (req.query.status) filter.status = req.query.status;
+
+    const appointments = await Appointment.find(filter)
+      .populate("patientId", "name email phone")
+      .populate("doctorId", "name specialization")
+      .populate("clinicId", "name")
+      .sort({ appointmentDate: -1, startTime: 1 });
+
       res.status(200).json({
         status: true,
         size: appointments.length,
@@ -174,10 +178,7 @@ class appointmentController {
           message: "Appointment ID is required",
         });
       }
-      const appointments = await Appointment.find({
-        appointmentId,
-        isDeleted: false,
-      });
+      const appointments = await Appointment.findOne({ _id: appointmentId, isDeleted: false });
       if (appointments.length === 0) {
         return res.status(404).json({
           status: false,
@@ -292,6 +293,7 @@ class appointmentController {
                   endTime: 1,
                   status: 1,
                   reason: 1,
+                  "patient.name": 1,
                   "patient.gender": 1,
                   "patient.dateOfBirth": 1,
                   "patient.bloodGroup": 1,
@@ -404,7 +406,6 @@ class appointmentController {
           });
         }
       }
-  
       // ---- AB UPDATE ----
       const updated = await Appointment.findByIdAndUpdate(
         appointmentId,
@@ -443,7 +444,7 @@ class appointmentController {
                 message: "Either appointmentStatus or paymentStatus is required",
             });
         }
-        const appointment = await Appointment.findOne({appointmentId, isDeleted: false});
+        const appointment = await Appointment.findOne({ _id: appointmentId, isDeleted: false });
         if(!appointment) {
             return res.status(404).json({
                 status: false,
@@ -467,7 +468,13 @@ class appointmentController {
               message: `Invalid paymentStatus. Allowed: ${VALID_PAYMENT.join(", ")}`,
             });
           }
-      
+          if (req.user.role === "patient" && String(appointment.patientId) !== String(req.user.id)) {
+            return res.status(403).json({ status: false, message: "Not allowed" });
+          }
+          // aur patient sirf CANCELLED hi kar sake:
+          if (req.user.role === "patient" && appointmentStatus && appointmentStatus !== "CANCELLED") {
+            return res.status(403).json({ status: false, message: "Patients can only cancel appointments" });
+          }
         if(appointmentStatus) appointment.status = appointmentStatus;
         if(paymentStatus) appointment.paymentStatus = paymentStatus;
         await appointment.save();
@@ -509,6 +516,159 @@ class appointmentController {
       res.status(500).json({
         status: false,
         message: "Server error in deleting appointment",
+        error: error.message,
+      });
+    }
+  }
+
+  // Doctor's own appointments
+  async getMyAllAppointments(req, res) {
+    try {
+      const { status, date } = req.query;
+      const filter = { doctorId: req.user.id, isDeleted: false };
+
+      if (status) filter.status = status;
+      if (date) {
+        const start = new Date(date);
+        start.setHours(0, 0, 0, 0);
+        filter.appointmentDate = {
+          $gte: start,
+          $lt: new Date(start.getTime() + 24 * 60 * 60 * 1000),
+        };
+      }
+
+      const appointments = await Appointment.find(filter)
+        .populate("patientId", "name phone gender bloodGroup")
+        .select("appointmentDate startTime endTime appointmentType status paymentStatus consultationFee reason")
+        .sort({ appointmentDate: -1, startTime: 1 });
+
+      return res.status(200).json({
+        status: true,
+        message: "Appointments fetched successfully",
+        appointments,
+      });
+    } catch (error) {
+      return res.status(500).json({
+        status: false,
+        message: "Server error in fetching appointments",
+        error: error.message,
+      });
+    }
+  }
+
+  // Receptionist's own appointments
+  async getReceptionistDashboard(req, res) {
+    try {
+      const startOfToday = new Date();
+      startOfToday.setHours(0, 0, 0, 0);
+      const endOfToday = new Date(startOfToday.getTime() + 24 * 60 * 60 * 1000);
+
+      const todayFilter = {
+        isDeleted: false,
+        appointmentDate: { $gte: startOfToday, $lt: endOfToday },
+      };
+
+      // counts + list + total patients — sab parallel
+      const [todayList, pending, confirmed, completed, totalPatients] = await Promise.all([
+        Appointment.find(todayFilter)
+          .populate("patientId", "name phone")
+          .populate("doctorId", "name specialization")
+          .select("startTime endTime status paymentStatus consultationFee appointmentType")
+          .sort({ startTime: 1 }),
+        Appointment.countDocuments({ ...todayFilter, status: "PENDING" }),
+        Appointment.countDocuments({ ...todayFilter, status: "CONFIRMED" }),
+        Appointment.countDocuments({ ...todayFilter, status: "COMPLETED" }),
+        Patient.countDocuments({}),   // ⚠️ isDeleted field hai toh { isDeleted: false }
+      ]);
+
+      return res.status(200).json({
+        status: true,
+        message: "Receptionist dashboard fetched successfully",
+        data: {
+          summary: {
+            today: todayList.length,
+            pending,
+            confirmed,
+            completed,
+            totalPatients,
+          },
+          todayAppointments: todayList,
+        },
+      });
+    } catch (error) {
+      return res.status(500).json({
+        status: false,
+        message: "Server error in receptionist dashboard",
+        error: error.message,
+      });
+    }
+  }
+
+  async getPatientDashboard(req, res) {
+    try {
+      const patientId = req.user.id;
+      const startOfToday = new Date();
+      startOfToday.setHours(0, 0, 0, 0);
+
+      const [total, upcoming, completed, upcomingList] = await Promise.all([
+        Appointment.countDocuments({ patientId, isDeleted: false }),
+        Appointment.countDocuments({
+          patientId, isDeleted: false,
+          appointmentDate: { $gte: startOfToday },
+          status: { $nin: ["CANCELLED", "REJECTED"] },
+        }),
+        Appointment.countDocuments({ patientId, isDeleted: false, status: "COMPLETED" }),
+        // upcoming list — next 5, time-sorted
+        Appointment.find({
+          patientId, isDeleted: false,
+          appointmentDate: { $gte: startOfToday },
+          status: { $nin: ["CANCELLED", "REJECTED", "COMPLETED"] },
+        })
+          .populate("doctorId", "name specialization")
+          .populate("clinicId", "name")
+          .select("appointmentDate startTime endTime status appointmentType bookingReference")
+          .sort({ appointmentDate: 1, startTime: 1 })
+          .limit(5),
+      ]);
+
+      return res.status(200).json({
+        status: true,
+        message: "Patient dashboard fetched successfully",
+        data: {
+          summary: { total, upcoming, completed },
+          upcomingAppointments: upcomingList,
+        },
+      });
+    } catch (error) {
+      return res.status(500).json({
+        status: false,
+        message: "Server error in patient dashboard",
+        error: error.message,
+      });
+    }
+  }
+
+  async getMyPatientAppointments(req, res) {
+    try {
+      const { status } = req.query;
+      const filter = { patientId: req.user.id, isDeleted: false };
+      if (status) filter.status = status;
+
+      const appointments = await Appointment.find(filter)
+        .populate("doctorId", "name specialization")
+        .populate("clinicId", "name address")
+        .select("appointmentDate startTime endTime appointmentType status paymentStatus consultationFee reason bookingReference")
+        .sort({ appointmentDate: -1, startTime: 1 });
+
+      return res.status(200).json({
+        status: true,
+        message: "Appointments fetched successfully",
+        appointments,
+      });
+    } catch (error) {
+      return res.status(500).json({
+        status: false,
+        message: "Server error in fetching appointments",
         error: error.message,
       });
     }

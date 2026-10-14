@@ -1,11 +1,11 @@
 const Doctor = require("../model/doctor.model");
 const Otp = require("../model/otp.model");
-const generatePassword = require('../util/generate.password')
-const bcryptjs = require('bcryptjs')
-const jwt = require('jsonwebtoken')
-const sendOtp=require('../util/send.otp')
-const sendEmail=require('../util/send.email')
-const {uploadFileOnCloudinary} = require('../util/upload.file.on.cloudinary')
+const {generatePassword} = require("../util/generate.password");
+const bcryptjs = require("bcryptjs");
+const jwt = require("jsonwebtoken");
+const sendOtp = require("../util/send.otp");
+const sendEmail = require("../util/send.email");
+const { uploadFileOnCloudinary } = require("../util/upload.file.on.cloudinary");
 
 class DoctorController {
   async registerDoctor(req, res) {
@@ -22,7 +22,15 @@ class DoctorController {
         about,
       } = req.body;
 
-      if( !name || !email || !departmentId || !qualification || !specialization || !experience || !consultationFee ){
+      if (
+        !name ||
+        !email ||
+        !departmentId ||
+        !qualification ||
+        !specialization ||
+        !experience ||
+        !consultationFee
+      ) {
         return res.status(400).json({
           status: false,
           message: "Missing required fields",
@@ -30,7 +38,7 @@ class DoctorController {
       }
 
       const existingDoctor = await Doctor.findOne({ email });
-      if(existingDoctor) {
+      if (existingDoctor) {
         return res.status(400).json({
           status: false,
           message: "Doctor with this email already exists",
@@ -45,7 +53,7 @@ class DoctorController {
         experience,
         consultationFee,
         consultationMode,
-        about
+        about,
       });
 
       const defaultPassword = generatePassword();
@@ -53,25 +61,27 @@ class DoctorController {
       const hashedPassword = await bcryptjs.hash(defaultPassword, salt);
       newDoctor.password = hashedPassword;
 
-      if(req.file && req.file.path) {
-        const localPath = req.file.path
+      if (req.file && req.file.path) {
+        const localPath = req.file.path;
         const cloudinaryResponse = await uploadFileOnCloudinary(localPath);
-        newDoctor.avatar = cloudinaryResponse.url;
+        newDoctor.profileImage = cloudinaryResponse.url;
       }
       // send otp for email verification
-        await sendOtp(req, newDoctor,"EMAIL_VERIFY");
-        // send email to doctor with default password and link to change password
-        await sendEmail(req, newDoctor,defaultPassword);
+      // await sendOtp(req, newDoctor, "EMAIL_VERIFY");
+      // send email to doctor with default password and link to change password
+      // await sendEmail(req, newDoctor, defaultPassword);
 
-        await newDoctor.save();
-        return res.status(201).json({
-          status: true,
-          message: "Doctor registered successfully. OTP sent to email for verification.",
-          doctor: newDoctor,
-        });
-
-
-
+      await newDoctor.save();
+      return res.status(201).json({
+        status: true,
+        message:
+          "Doctor registered successfully. OTP sent to email for verification.",
+        doctor: newDoctor,
+        credentials: {
+          email: newDoctor.email,
+          temporaryPassword: defaultPassword,   // ⬅️ plain password (hash nahi!)
+        },
+      });
     } catch (error) {
       return res.status(500).json({
         status: false,
@@ -81,7 +91,7 @@ class DoctorController {
     }
   }
 
-  async loginDoctor(req,res){
+  async loginDoctor(req, res) {
     try {
       const { email, password } = req.body;
 
@@ -108,7 +118,7 @@ class DoctorController {
         });
       }
 
-      if (!doctor.isVerified && !doctor.role == 'doctor') {
+      if (!doctor.isVerified && !doctor.role == "doctor") {
         return res.status(403).json({
           status: false,
           message: "Email not verified or you are not a doctor.",
@@ -124,7 +134,7 @@ class DoctorController {
           role: doctor.role,
         },
         process.env.JWT_SECRET || "jwt-secret-key",
-        { expiresIn: "1m" }
+        { expiresIn: "15m" }
       );
 
       const refreshToken = jwt.sign(
@@ -164,7 +174,7 @@ class DoctorController {
         token,
       });
     } catch (error) {
-      console.log(err);
+      console.log(error);
       res.status(500).json({
         status: false,
         message: "Server error in login user",
@@ -173,9 +183,11 @@ class DoctorController {
   }
   async getAllDoctors(req, res) {
     try {
-      const doctors = await Doctor.find();
+      const doctors = await Doctor.find({ isDeleted: false }).select(
+        "-password -refreshToken"
+      ).populate("departmentId", "name");;
 
-      if(!doctors || doctors.length === 0) {
+      if (!doctors || doctors.length === 0) {
         return res.status(404).json({
           status: false,
           message: "No doctors found",
@@ -200,7 +212,7 @@ class DoctorController {
       const { id } = req.params;
       const doctor = await Doctor.findById(id);
 
-      if(!doctor) {
+      if (!doctor) {
         return res.status(404).json({
           status: false,
           message: "Doctor not found",
@@ -225,15 +237,22 @@ class DoctorController {
       const { id } = req.params;
       const updateData = req.body;
 
-      if(req.file && req.file.path) {
-        const localPath = req.file.path
+      delete updateData.password; 
+      delete updateData.role;
+      delete updateData.email; 
+      delete updateData.isDeleted;
+
+      if (req.file && req.file.path) {
+        const localPath = req.file.path;
         const cloudinaryResponse = await uploadFileOnCloudinary(localPath);
         updateData.avatar = cloudinaryResponse.url;
       }
 
-      const updatedDoctor = await Doctor.findByIdAndUpdate(id, updateData, { new: true });
+      const updatedDoctor = await Doctor.findByIdAndUpdate(id, updateData, {
+        new: true,
+      });
 
-      if(!updatedDoctor) {
+      if (!updatedDoctor) {
         return res.status(404).json({
           status: false,
           message: "Doctor not found",
@@ -258,20 +277,20 @@ class DoctorController {
       const { id } = req.params;
       const doctorTobeDelete = await Doctor.findById(id);
 
-      if(!doctorTobeDelete) {
+      if (!doctorTobeDelete) {
         return res.status(404).json({
           status: false,
           message: "Doctor not found",
         });
       }
 
-      doctorTobeDelete.isDeleted = true; 
+      doctorTobeDelete.isDeleted = true;
       await doctorTobeDelete.save();
 
       return res.status(200).json({
         status: true,
         message: "Doctor deleted successfully",
-        doctor: deletedDoctor,
+        doctor: doctorTobeDelete,
       });
     } catch (error) {
       return res.status(500).json({
@@ -286,7 +305,7 @@ class DoctorController {
     try {
       const { email, otp } = req.body;
 
-      if(!email || !otp) {
+      if (!email || !otp) {
         return res.status(400).json({
           status: false,
           message: "Email and OTP are required",
@@ -295,7 +314,7 @@ class DoctorController {
 
       const doctor = await Doctor.findOne({ email });
 
-      if(!doctor) {
+      if (!doctor) {
         return res.status(404).json({
           status: false,
           message: "Doctor not found",
@@ -303,7 +322,7 @@ class DoctorController {
       }
 
       // Verify OTP logic here (assuming you have a function to verify OTP)
-      if(doctor.isVerified) {
+      if (doctor.isVerified) {
         return res.status(400).json({
           status: false,
           message: "Doctor email already verified",
@@ -312,18 +331,20 @@ class DoctorController {
       const isOtpExsit = await Otp.findOne({
         userId: doctor._id,
         otp,
-      })
-      if(!isOtpExsit) {
+      });
+      if (!isOtpExsit) {
         return res.status(400).json({
           status: false,
           message: "Invalid OTP or expired OTP",
         });
       }
-      
-      const currentTime = new Date();
-      const otpExpiryTime = new Date(isOtpExsit.createdAt.getTime() + 15 * 60 * 1000); 
 
-      if(currentTime > otpExpiryTime) {
+      const currentTime = new Date();
+      const otpExpiryTime = new Date(
+        isOtpExsit.createdAt.getTime() + 15 * 60 * 1000
+      );
+
+      if (currentTime > otpExpiryTime) {
         return res.status(400).json({
           status: false,
           message: "OTP has expired",
@@ -352,7 +373,7 @@ class DoctorController {
     try {
       const { email } = req.body;
 
-      if(!email) {
+      if (!email) {
         return res.status(400).json({
           status: false,
           message: "Email is required",
@@ -361,21 +382,21 @@ class DoctorController {
 
       const doctor = await Doctor.findOne({ email });
 
-      if(!doctor) {
+      if (!doctor) {
         return res.status(404).json({
           status: false,
           message: "Doctor not found",
         });
       }
 
-      if(doctor.isVerified) {
+      if (doctor.isVerified) {
         return res.status(400).json({
           status: false,
           message: "Doctor email already verified",
         });
       }
 
-      await sendOtp(req, doctor,"EMAIL_VERIFY");
+      await sendOtp(req, doctor, "EMAIL_VERIFY");
 
       return res.status(200).json({
         status: true,
@@ -393,14 +414,14 @@ class DoctorController {
     try {
       const { email, oldPassword, newPassword } = req.body;
 
-      if(!email || !oldPassword || !newPassword) {
+      if (!email || !oldPassword || !newPassword) {
         return res.status(400).json({
           status: false,
           message: "Email, old password and new password are required",
         });
       }
 
-      if(!newPassword || newPassword.length < 8) {
+      if (!newPassword || newPassword.length < 8) {
         return res.status(400).json({
           status: false,
           message: "New password must be at least 8 characters long",
@@ -409,7 +430,7 @@ class DoctorController {
 
       const doctor = await Doctor.findOne({ email });
 
-      if(!doctor) {
+      if (!doctor) {
         return res.status(404).json({
           status: false,
           message: "Doctor not found",
@@ -417,7 +438,7 @@ class DoctorController {
       }
 
       const isMatch = await bcryptjs.compare(oldPassword, doctor.password);
-      if(!isMatch) {
+      if (!isMatch) {
         return res.status(400).json({
           status: false,
           message: "Old password is incorrect",
@@ -438,6 +459,69 @@ class DoctorController {
         status: false,
         message: "Server error in changing password",
         error: error.message,
+      });
+    }
+  }
+
+  async getMyProfile(req, res) {
+    try {
+      const doctor = await Doctor.findById(req.user.id)
+        .select("-password -refreshToken")
+        .populate("departmentId", "name");
+
+      if (!doctor) {
+        return res.status(404).json({ status: false, message: "Doctor not found" });
+      }
+      return res.status(200).json({
+        status: true,
+        message: "Profile fetched successfully",
+        doctor,
+      });
+    } catch (error) {
+      return res.status(500).json({
+        status: false,
+        message: "Server error in fetching profile",
+      });
+    }
+  }
+
+  async updateMyProfile(req, res) {
+    try {
+      const updateData = { ...req.body };
+
+      // security — yeh fields kabhi body se update nahi
+      delete updateData.password;
+      delete updateData.role;
+      delete updateData.email;
+      delete updateData.isDeleted;
+      delete updateData.isVerified;
+      delete updateData.departmentId;   // department change = admin ka kaam
+
+      // photo upload (multer — field naam: profileImage)
+      if (req.file && req.file.path) {
+        const cloudinaryResponse = await uploadFileOnCloudinary(req.file.path);
+        updateData.profileImage = cloudinaryResponse.url;
+      }
+
+      const updated = await Doctor.findByIdAndUpdate(req.user.id, updateData, {
+        new: true,
+        runValidators: true,
+      })
+        .select("-password -refreshToken")
+        .populate("departmentId", "name");
+
+      if (!updated) {
+        return res.status(404).json({ status: false, message: "Doctor not found" });
+      }
+      return res.status(200).json({
+        status: true,
+        message: "Profile updated successfully",
+        doctor: updated,
+      });
+    } catch (error) {
+      return res.status(500).json({
+        status: false,
+        message: "Server error in updating profile",
       });
     }
   }

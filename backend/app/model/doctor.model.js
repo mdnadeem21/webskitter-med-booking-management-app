@@ -24,12 +24,6 @@ const doctorSchema = new Schema({
     enum: ["doctor", "admin", "receptionist","patient"],
     default: "doctor",
   },
-//   clinicId: {
-//     type: Schema.Types.ObjectId,
-//     ref: "manage-med-clinic",
-//     required: true,
-//     index: true,
-//   },
   departmentId: {
     type: Schema.Types.ObjectId,
     ref: "manage-med-department",
@@ -71,7 +65,7 @@ const doctorSchema = new Schema({
   }, // Cloudinary URL
   isVerified: { 
     type: Boolean, 
-    default: false 
+    default: true 
   }, // admin verify karega
   isActive: { 
     type: Boolean, 
@@ -81,6 +75,8 @@ const doctorSchema = new Schema({
     type: Boolean, 
     default: false 
   },
+},{
+  timestamps: true,
 });
 
 const Doctor = mongoose.model("manage-med-doctor", doctorSchema);

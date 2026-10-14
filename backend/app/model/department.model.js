@@ -6,11 +6,6 @@ const departmentSchema = new mongoose.Schema({
         required: true,
         trim: true
     },
-    // clinicId: {
-    //     type: mongoose.Schema.Types.ObjectId,
-    //     ref: 'manage-med-clinic',
-    //     required: true
-    // },
     description: { 
         type: String, 
         trim: true 

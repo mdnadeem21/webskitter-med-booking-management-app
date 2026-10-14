@@ -5,6 +5,8 @@
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
+    "seed": "node ./app/seed/seeder.js",
+    "seed:destroy": "node ./app/seed/seeder.js --destroy",
     "dev": "nodemon index.js"
   },
   "keywords": [],

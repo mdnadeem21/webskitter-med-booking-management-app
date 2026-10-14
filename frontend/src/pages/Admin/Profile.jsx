@@ -1,18 +1,14 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useSelector } from "react-redux";
 import Card from "../../components/Card";
 import Input from "../../components/Input";
 import Button from "../../components/Button";
+import { getMyAdminProfile, updateMyAdminProfile, changeAdminPassword } from "../../api/adminApi";
 
 function AdminProfile() {
   const { user } = useSelector(s => s.auth);
-
-  const [data, setData] = useState({
-    name: user?.name || "Admin",
-    email: user?.email || "",
-    phone: "9876543210",
-    address: "MG Road, Bangalore, 560001",
-  });
+  const [data, setData] = useState({ name: "", email: "", phone: "", address: "" });
+  const [loading, setLoading] = useState(true);
   const [photo, setPhoto] = useState(null);
   const [showEditForm, setShowEditForm] = useState(false);
   const [showPasswordModal, setShowPasswordModal] = useState(false);
@@ -21,6 +17,63 @@ function AdminProfile() {
   const [pwd, setPwd] = useState({ current: "", newPassword: "", confirm: "" });
   const [pwdError, setPwdError] = useState("");
 
+  useEffect(() => {
+    const fetchProfile = async () => {
+      try {
+        const res = await getMyAdminProfile();
+        const a = res.data.admin;
+        setData({
+          name: a.name || "",
+          email: a.email || "",
+          phone: a.phone || "",
+          address: a.address || "",
+        });
+      } catch (err) {
+        console.error("Profile fetch failed:", err.message);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchProfile();
+  }, []);
+
+  const handleSaveProfile = async () => {
+    setSaving(true);
+    try {
+      const res = await updateMyAdminProfile({
+        name: data.name.trim(),
+        phone: data.phone.trim(),
+        address: data.address.trim(),     // model me fields honi chahiye!
+      });
+      const a = res.data.admin;
+      setData(d => ({ ...d, name: a.name, phone: a.phone || "", address: a.address || "" }));
+      alert("Profile updated ✅");
+      setShowEditForm(false);
+    } catch (err) {
+      alert(err.message || "Update failed");
+    } finally {
+      setSaving(false);
+    }
+  };
+  
+  // ---------- CHANGE PASSWORD (email nahi bhejte — token se) ----------
+  const handleChangePassword = async e => {
+    e.preventDefault();
+    if (pwd.newPassword.length < 8) return setPwdError("New password min 8 characters (backend rule)");
+    if (pwd.newPassword !== pwd.confirm) return setPwdError("New passwords do not match");
+    setPwdError("");
+    try {
+      await changeAdminPassword({
+        oldPassword: pwd.current,
+        newPassword: pwd.newPassword,
+      });
+      alert("Password changed ✅");
+      setShowPasswordModal(false);
+      setPwd({ current: "", newPassword: "", confirm: "" });
+    } catch (err) {
+      setPwdError(err.message || "Failed");
+    }
+  };
   const handlePhotoChange = e => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -33,39 +86,9 @@ function AdminProfile() {
 
   const handleChange = e => setData({ ...data, [e.target.name]: e.target.value });
 
-  const handleSaveProfile = async () => {
-    setSaving(true);
-    try {
-      // ⏳ Phase 6: PATCH /api/admin/me
-      console.log("Admin profile update:", data);
-      alert("Profile updated (dummy)");
-      setShowEditForm(false);
-    } finally {
-      setSaving(false);
-    }
-  };
+ 
 
-  const handleChangePassword = async e => {
-    e.preventDefault();
-    if (pwd.newPassword.length < 6) {
-      setPwdError("New password min 6 characters");
-      return;
-    }
-    if (pwd.newPassword !== pwd.confirm) {
-      setPwdError("New passwords do not match");
-      return;
-    }
-    setPwdError("");
-    try {
-      // ⏳ Phase 6: PATCH /api/admin/change-password
-      console.log("Change password:", pwd);
-      alert("Password changed (dummy)");
-      setShowPasswordModal(false);
-      setPwd({ current: "", newPassword: "", confirm: "" });
-    } catch (err) {
-      setPwdError(err?.response?.data?.message || "Failed");
-    }
-  };
+  
 
   const photoUrl = photo || user?.photoUrl || null;
 
@@ -74,6 +97,7 @@ function AdminProfile() {
     { label: "Address", value: data.address },
   ].filter(r => r.value);
 
+  if (loading) return <div className="p-6 text-gray-500">Loading profile...</div>;
   return (
     <div className="p-6 max-w-3xl">
       <h1 className="text-2xl font-bold text-gray-800 mb-6">My Profile</h1>

@@ -3,7 +3,7 @@ import { useDispatch, useSelector } from "react-redux";
 import { logout } from "../store/slices/authSlice";
 import NotificationBell from "../components/NotificationBell";
 
-// ⏳ Phase 6: DOCTORS aur SERVICES API se aayenge — GET /api/doctors (public, verified only)
+
 const SERVICES = [
   {
     icon: "🩺",
@@ -77,23 +77,22 @@ const STEPS = [
 ];
 
 function Landing() {
-  const { token, user } = useSelector((s) => s.auth);
+  const { accessToken, user } = useSelector((s) => s.auth);
   const dispatch = useDispatch();
   const navigate = useNavigate();
   const handleLogout = () => {
     dispatch(logout());
-    navigate("/"); // landing pe hi raho
+    navigate("/"); 
   };
   const handleBookNow = () => {
-    if (!token) {
-      // Guest → login pe bhejo, wapas booking pe aane ke liye state me "intent" save
+    if (!accessToken || !user) {
       navigate("/login", { state: { from: "/patient/book" } });
     } else if (user.role === "patient") {
-      // Patient logged in → seedha booking wizard
       navigate("/patient/book");
-    } else {
-      // Doctor/receptionist/admin → apna dashboard (unke liye booking nahi)
+    } else if (user.role) {
       navigate(`/${user.role}`);
+    } else {
+      navigate("/login");
     }
   };
   return (
@@ -103,18 +102,17 @@ function Landing() {
         <div className="max-w-6xl mx-auto px-4 py-4 flex items-center justify-between">
           <h1 className="text-xl font-bold text-blue-600">🩺 MediCare</h1>
           <div className="flex items-center gap-3">
-            {token ? (
+            {accessToken ? (
               <>
-                {/* Logged in: dashboard + logout dikhao */}
                 <Link
-                  to={`/${user.role}`}
+                  to={`/${user?.role}`}
                   className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700"
                 >
                   Go to Dashboard
                 </Link>
-                <NotificationBell /> {/* ⬅️ BELL */}
+                <NotificationBell /> 
                 <span className="text-sm text-gray-700 hidden sm:block">
-                  {user?.name} {/* name badge */}
+                  {user?.name} 
                 </span>
                 <button
                   onClick={handleLogout}
@@ -125,7 +123,6 @@ function Landing() {
               </>
             ) : (
               <>
-                {/* Guest: login/register dikhao */}
                 <Link
                   to="/login"
                   className="px-4 py-2 text-sm font-medium text-blue-600 hover:bg-blue-50 rounded-lg"
@@ -152,16 +149,10 @@ function Landing() {
             <span className="block text-blue-600">in Minutes, Not Hours</span>
           </h2>
           <p className="text-gray-500 mt-4 max-w-xl mx-auto">
-            Expert doctors, transparent fees, aur zero waiting queue. Apna slot
-            choose karo — confirm ho jayega instantly.
+            Expert doctors, transparent fees, zero waiting queue. Book your slot
+            — get confirmation instantly.
           </p>
           <div className="mt-8 flex justify-center gap-3">
-            {/* <Link
-              to="/register"
-              className="px-6 py-3 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700"
-            >
-              Book Appointment
-            </Link> */}
             <button
               onClick={handleBookNow}
               className="px-6 py-3 bg-blue-600 text-white rounded-lg font-medium hover:bg-blue-700"
@@ -246,12 +237,6 @@ function Landing() {
                 <p className="text-sm font-medium text-gray-800 mt-2">
                   ₹{d.fee} consultation
                 </p>
-                {/* <Link
-                  to="/login"
-                  className="inline-block mt-4 px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700"
-                >
-                  Book Now
-                </Link> */}
                 <button
                   onClick={handleBookNow}
                   className="mt-4 px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700"
@@ -292,18 +277,6 @@ function Landing() {
             Register karo aur 2 minute me apna slot lock karo.
           </p>
           <div className="mt-6 flex justify-center gap-3">
-            {/* <Link
-              to="/register"
-              className="px-6 py-3 bg-white text-blue-600 rounded-lg font-medium hover:bg-blue-50"
-            >
-              Register Now
-            </Link>
-            <Link
-              to="/login"
-              className="px-6 py-3 border border-blue-300 text-white rounded-lg font-medium hover:bg-blue-700"
-            >
-              Login
-            </Link> */}
             <button
               onClick={handleBookNow}
               className="px-6 py-3 bg-white text-blue-600 rounded-lg font-medium hover:bg-blue-50"

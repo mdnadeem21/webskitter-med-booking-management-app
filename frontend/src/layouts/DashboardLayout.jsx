@@ -1,11 +1,10 @@
-// src/layouts/DashboardLayout.jsx
 import { NavLink, Outlet } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
 import { logout } from "../store/slices/authSlice";
 import { useNavigate, Link } from "react-router-dom";
 import NotificationBell from "../components/NotificationBell";
 
-// Har role ka apna menu — role.json jaisa concept, frontend version
+
 const MENU_BY_ROLE = {
     patient: [
       { to: "/patient", label: "Dashboard", end: true },
@@ -31,6 +30,8 @@ const MENU_BY_ROLE = {
       { to: "/admin/patients", label: "Patients" },
       { to: "/admin/appointments", label: "Appointments" },
       { to: "/admin/profile", label: "Profile" },
+      { to: "/admin/clinic",label:"Clinic"},
+      { to : "/admin/department",label:"Department"},
     ],
   };
 

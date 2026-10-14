@@ -1,23 +1,21 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useSelector } from "react-redux";
 import Card from "../../components/Card";
 import Input from "../../components/Input";
 import Button from "../../components/Button";
+import { getMyDoctorProfile, updateMyDoctorProfile, changeDoctorPassword } from "../../api/doctorApi";
 
 function DoctorProfile() {
   const { user } = useSelector(s => s.auth);
 
   const [data, setData] = useState({
-    name: user?.name || "Doctor",
-    email: user?.email || "",
-    phone: "9876543210",
-    specialization: "Cardiology",
-    qualification: "MBBS, MD",
-    experience: 8,
-    consultationFee: 500,
-    address: "MG Road, Bangalore, 560001",
+    name: "", email: "", specialization: "", qualification: "",
+    experience: "", consultationFee: "", about: "", departmentName: "",
   });
-  const [photo, setPhoto] = useState(null);
+  const [photoFile, setPhotoFile] = useState(null);
+  const [photoPreview, setPhotoPreview] = useState(null);
+  const [serverPhoto, setServerPhoto] = useState(null);
+  const [loading, setLoading] = useState(true);
   const [showEditForm, setShowEditForm] = useState(false);
   const [showPasswordModal, setShowPasswordModal] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -25,72 +23,112 @@ function DoctorProfile() {
   const [pwd, setPwd] = useState({ current: "", newPassword: "", confirm: "" });
   const [pwdError, setPwdError] = useState("");
 
-  // ---------- PHOTO ----------
+  // ---------------- FETCH ----------------
+  useEffect(() => {
+    const fetchProfile = async () => {
+      try {
+        const res = await getMyDoctorProfile();
+        const doc = res.data.doctor;
+        setData({
+          name: doc.name || "",
+          email: doc.email || "",
+          specialization: doc.specialization || "",
+          qualification: doc.qualification || "",
+          experience: doc.experience ?? "",
+          consultationFee: doc.consultationFee ?? "",
+          about: doc.about || "",
+          departmentName: doc.departmentId?.name || "",
+        });
+        setServerPhoto(doc.profileImage || null);
+      } catch (err) {
+        console.error("Profile fetch failed:", err.message);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchProfile();
+  }, []);
+
+  const handleChange = e => setData({ ...data, [e.target.name]: e.target.value });
+
   const handlePhotoChange = e => {
     const file = e.target.files?.[0];
     if (!file) return;
-    if (file.size > 2 * 1024 * 1024) {
-      alert("Photo 2MB se chhoti honi chahiye");
-      return;
-    }
-    setPhoto(URL.createObjectURL(file));
-    // ⏳ Phase 6: FormData → upload API → URL save
+    if (file.size > 2 * 1024 * 1024) return alert("Photo 2MB se chhoti honi chahiye");
+    setPhotoFile(file);
+    setPhotoPreview(URL.createObjectURL(file));
   };
 
-  // ---------- PROFILE ----------
-  const handleChange = e => setData({ ...data, [e.target.name]: e.target.value });
-
+  // ---------------- SAVE PROFILE ----------------
   const handleSaveProfile = async () => {
     setSaving(true);
     try {
-      // ⏳ Phase 6: PATCH /api/doctor/me — body: data
-      console.log("Doctor profile update:", data);
-      alert("Profile updated (dummy)");
+      const fd = new FormData();
+      fd.append("name", data.name);
+      fd.append("specialization", data.specialization);
+      fd.append("qualification", data.qualification);
+      fd.append("experience", data.experience);
+      fd.append("consultationFee", data.consultationFee);
+      fd.append("about", data.about || "");
+      if (photoFile) fd.append("profileImage", photoFile);
+
+      const res = await updateMyDoctorProfile(fd);
+      const doc = res.data.doctor;
+      setData(d => ({
+        ...d,
+        name: doc.name, specialization: doc.specialization,
+        qualification: doc.qualification, experience: doc.experience,
+        consultationFee: doc.consultationFee, about: doc.about || "",
+      }));
+      setServerPhoto(doc.profileImage || serverPhoto);
+      setPhotoFile(null);
+      setPhotoPreview(null);
+      alert("Profile updated ✅");
       setShowEditForm(false);
+    } catch (err) {
+      alert(err.message || "Update failed");
     } finally {
       setSaving(false);
     }
   };
 
-  // ---------- PASSWORD ----------
+  // ---------------- CHANGE PASSWORD ----------------
   const handleChangePassword = async e => {
     e.preventDefault();
-    if (pwd.newPassword.length < 6) {
-      setPwdError("New password min 6 characters");
-      return;
-    }
-    if (pwd.newPassword !== pwd.confirm) {
-      setPwdError("New passwords do not match");
-      return;
-    }
+    if (pwd.newPassword.length < 8) return setPwdError("New password min 8 characters");
+    if (pwd.newPassword !== pwd.confirm) return setPwdError("New passwords do not match");
     setPwdError("");
     try {
-      // ⏳ Phase 6: PATCH /api/doctor/change-password
-      console.log("Change password:", pwd);
-      alert("Password changed (dummy)");
+      await changeDoctorPassword({
+        email: data.email || user?.email,   // backend email-based hai
+        oldPassword: pwd.current,
+        newPassword: pwd.newPassword,
+      });
+      alert("Password changed ✅");
       setShowPasswordModal(false);
       setPwd({ current: "", newPassword: "", confirm: "" });
     } catch (err) {
-      setPwdError(err?.response?.data?.message || "Failed");
+      setPwdError(err.message || "Failed");
     }
   };
 
-  const photoUrl = photo || user?.photoUrl || null;
+  const photoUrl = photoPreview || serverPhoto || null;
 
   const detailRows = [
     { label: "Specialization", value: data.specialization },
     { label: "Qualification", value: data.qualification },
-    { label: "Experience", value: data.experience ? `${data.experience} years` : "" },
-    { label: "Consultation Fee", value: data.consultationFee ? `₹${data.consultationFee}` : "" },
-    { label: "Phone", value: data.phone },
-    { label: "Address", value: data.address },
+    { label: "Experience", value: data.experience !== "" ? `${data.experience} years` : "" },
+    { label: "Consultation Fee", value: data.consultationFee !== "" ? `₹${data.consultationFee}` : "" },
+    { label: "Department", value: data.departmentName },
   ].filter(r => r.value);
+
+  if (loading) return <div className="p-6 text-gray-500">Loading profile...</div>;
 
   return (
     <div className="p-6 max-w-3xl">
       <h1 className="text-2xl font-bold text-gray-800 mb-6">My Profile</h1>
 
-      {/* ============ PHOTO + NAME ============ */}
+      {/* PHOTO + NAME */}
       <Card className="mb-6">
         <div className="flex items-center gap-6">
           <div className="relative">
@@ -114,7 +152,7 @@ function DoctorProfile() {
         </div>
       </Card>
 
-      {/* ============ DETAILS (read-only) ============ */}
+      {/* DETAILS (read-only) */}
       {!showEditForm && (
         <Card>
           <div className="flex justify-between items-center mb-4">
@@ -141,28 +179,31 @@ function DoctorProfile() {
         </Card>
       )}
 
-      {/* ============ EDIT FORM ============ */}
+      {/* EDIT FORM */}
       {showEditForm && (
         <Card>
           <div className="flex justify-between items-center mb-4">
             <h3 className="font-semibold text-gray-800">Edit Details</h3>
-            <button onClick={() => setShowEditForm(false)} className="text-gray-400 text-sm hover:text-gray-600">
-              ✕ Cancel
-            </button>
+            <button onClick={() => setShowEditForm(false)} className="text-gray-400 text-sm hover:text-gray-600">✕ Cancel</button>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <Input label="Name" name="name" value={data.name} onChange={handleChange} />
-            <Input label="Email" name="email" value={data.email} disabled />
-            <Input label="Phone" name="phone" value={data.phone} onChange={handleChange} />
+            <Input label="Email" value={data.email} disabled />
             <Input label="Specialization" name="specialization" value={data.specialization} onChange={handleChange} />
             <Input label="Qualification" name="qualification" value={data.qualification} onChange={handleChange} />
             <Input label="Experience (years)" name="experience" type="number" value={data.experience} onChange={handleChange} />
             <Input label="Consultation Fee (₹)" name="consultationFee" type="number" value={data.consultationFee} onChange={handleChange} />
             <div className="md:col-span-2">
-              <Input label="Address" name="address" value={data.address} onChange={handleChange} />
+              <label className="block text-sm font-medium text-gray-700 mb-1">About</label>
+              <textarea name="about" rows="3" value={data.about} onChange={handleChange}
+                maxLength={2000} className="w-full px-3 py-2 border rounded-lg" />
             </div>
           </div>
+
+          <p className="text-xs text-gray-400 mt-3">
+            Department change karne ke liye admin se contact karo.
+          </p>
 
           <div className="flex gap-2 mt-4">
             <Button onClick={handleSaveProfile} disabled={saving}>
@@ -173,7 +214,7 @@ function DoctorProfile() {
         </Card>
       )}
 
-      {/* ============ CHANGE PASSWORD MODAL ============ */}
+      {/* CHANGE PASSWORD MODAL */}
       {showPasswordModal && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-xl p-6 w-full max-w-md">

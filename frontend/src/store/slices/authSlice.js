@@ -1,14 +1,17 @@
 import { createSlice } from "@reduxjs/toolkit";
 
-// Helper: localStorage se purana session wapas lao
-// (page refresh pe Redux state reset hota hai — localStorage se restore)
 const loadAuth = () => {
   try {
-    const token = localStorage.getItem("token");
-    const user = JSON.parse(localStorage.getItem("user"));
-    if (token && user) return { token, user };
+    const saved = JSON.parse(localStorage.getItem("auth"));
+    if (saved?.accessToken && saved?.user) {
+      return {
+        accessToken: saved.accessToken,
+        refreshToken: saved.refreshToken,
+        user: saved.user,
+      };
+    }
   } catch (e) {}
-  return { token: null, user: null };
+  return { accessToken: null, refreshToken:null, user: null };
 };
 
 const initialState = {
@@ -21,20 +24,25 @@ const authSlice = createSlice({
   name: "auth",
   initialState,
   reducers: {
-    // LOGIN_SUCCESS — login API ke baad call hoga
-    setCredentials: (state, action) => {
-      state.token = action.payload.token;
-      state.user = action.payload.user;
-      localStorage.setItem("token", action.payload.token);
-      localStorage.setItem("user", JSON.stringify(action.payload.user));
+    setCredentials(state, { payload }) {
+      state.accessToken = payload.accessToken;
+      state.refreshToken = payload.refreshToken;
+      state.user = payload.user;
+      // localStorage persistence 
+      localStorage.setItem("auth", JSON.stringify({
+        accessToken: payload.accessToken,
+        refreshToken: payload.refreshToken,
+        user: payload.user,
+      }));
     },
 
-    // LOGOUT — sab clear
+    // LOGOUT
     logout: (state) => {
-      state.token = null;
+      state.accessToken = null;
+      state.refreshToken == null;
       state.user = null;
-      localStorage.removeItem("token");
-      localStorage.removeItem("user");
+      localStorage.removeItem("auth");
+      // localStorage.removeItem("user");
     },
   },
 });

@@ -30,6 +30,8 @@ import AdminReceptionists from "./pages/Admin/Receptionists";
 import AdminPatients from "./pages/Admin/Patients";
 import AdminAppointments from "./pages/Admin/Appointments";
 import AdminProfile from "./pages/Admin/Profile"
+import AdminClinics from "./pages/Admin/AdminClinics";
+import AdminDepartments from "./pages/Admin/AdminDepartment"
 
 
 
@@ -45,7 +47,7 @@ function App() {
         <Route path="/register" element={<Registration />} />
         <Route path="/" element={<Home />} />
 
-        {/* Role dashboards — abhi dummy, Phase 5 me full pages */}
+        
         <Route
           path="/patient"
           element={
@@ -101,6 +103,8 @@ function App() {
           <Route path="patients" element={<AdminPatients />} />
           <Route path="appointments" element={<AdminAppointments />} />
           <Route path="profile" element={<AdminProfile />} />
+          <Route path="clinic" element={<AdminClinics />} />
+          <Route path="department" element={<AdminDepartments />} />
         </Route>
 
         {/* 404 */}

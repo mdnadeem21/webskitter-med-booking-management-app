@@ -1,4 +1,5 @@
 const Patient = require("../model/patient.model");
+const Appointment = require("../model/appointment.model");
 const Otp = require("../model/otp.model");
 const bcryptjs = require("bcryptjs");
 const jwt = require("jsonwebtoken");
@@ -89,7 +90,6 @@ class patientController {
     async loginPatient(req, res) {
         try {
             const { email, password } = req.body;
-
             if (!email || !password) {
                 return res.status(400).json({
                     status: false,
@@ -129,7 +129,7 @@ class patientController {
                     role: patient.role,
                 },
                 process.env.JWT_SECRET || "jwt-secret-key",
-                { expiresIn: "1m" }
+                { expiresIn: "15m" }
             );
 
             const refreshToken = jwt.sign(
@@ -165,11 +165,11 @@ class patientController {
             res.status(200).json({
                 status: true,
                 message: "Login successful",
-                data: { userId: patient._id, email: patient.email },
+                data: { userId: patient._id, name:patient.name, email: patient.email },
                 token,
             });
         } catch (error) {
-            console.log(err);
+            console.log(error);
             res.status(500).json({
                 status: false,
                 message: "Server error in login user",
@@ -177,26 +177,41 @@ class patientController {
         }
     }
 
-    async getPatients(req, res) {
+    async getAllPatients(req, res) {
         try {
-            const patients = await Patient.find({ isDeleted: false });
-            if (patients.length === 0) {
-                return res.status(404).json({
-                    status: false,
-                    message: "No patients found",
-                });
-            }
-            res.status(200).json({
-                status: true,
-                size: patients.length,
-                message: "Patients fetched successfully",
-                patients,
-            });
+          const search = req.query.search?.trim() || "";
+      
+          // search regex — name/email/phone me
+          const filter = {};
+          if (search) {
+            const regex = new RegExp(search.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i");  // regex-injection safe
+            filter.$or = [{ name: regex }, { email: regex }, { phone: regex }];
+          }
+      
+          const patients = await Patient.find(filter)
+            .select("name email phone gender bloodGroup isVerified createdAt")
+            .sort({ createdAt: -1 });   // naye pehle
+      
+          // ⚠️ har patient ke liye alag countDocuments = N+1 problem
+          // ek hi aggregation me sabka count:
+          const counts = await Appointment.aggregate([
+            { $match: { isDeleted: false } },
+            { $group: { _id: "$patientId", total: { $sum: 1 } } },
+          ]);
+          const countMap = {};
+          for (const c of counts) countMap[c._id.toString()] = c.total;
+      
+          return res.status(200).json({
+            status: true,
+            message: "Patients fetched successfully",
+            patients: patients.map(p => ({
+              ...p.toObject(),
+              totalAppointments: countMap[p._id.toString()] || 0,
+            })),
+          });
         } catch (error) {
-            res.status(500).json({
-                status: false,
-                message: error.message,
-            });
+          console.error(error);
+          return res.status(500).json({ status: false, message: "Server error in fetching patients" });
         }
     }
 
@@ -441,8 +456,84 @@ class patientController {
         }
     }
 
-    // forgot password link
-    // forgot password 
+    async togglePatient(req, res) {
+        try {
+          const patient = await Patient.findById(req.params.id);
+          if (!patient) return res.status(404).json({ status: false, message: "Patient not found" });
+      
+          patient.isActive = !patient.isActive;
+          await patient.save();
+      
+          return res.status(200).json({
+            status: true,
+            message: `Patient ${patient.isActive ? "unblocked" : "blocked"} successfully`,
+          });
+        } catch (error) {
+          return res.status(500).json({ status: false, message: "Server error" });
+        }
+    }
+
+    async getMyProfile(req, res) {
+        try {
+          const patient = await Patient.findById(req.user.id)
+            .select("-password -refreshToken");
+          if (!patient) {
+            return res.status(404).json({ status: false, message: "Patient not found" });
+          }
+          return res.status(200).json({ status: true, message: "Profile fetched", patient });
+        } catch (error) {
+          return res.status(500).json({ status: false, message: "Server error" });
+        }
+      }
+    
+      // ---------- PATIENT: khud ka profile update ----------
+      async updateMyProfile(req, res) {
+        try {
+          const updateData = { ...req.body };
+          // locked fields
+          delete updateData.password;
+          delete updateData.role;
+          delete updateData.email;
+          delete updateData.isVerified;
+          delete updateData.isDeleted;
+          delete updateData.isActive;
+    
+          const updated = await Patient.findByIdAndUpdate(req.user.id, updateData, {
+            new: true, runValidators: true,
+          }).select("-password -refreshToken");
+    
+          if (!updated) {
+            return res.status(404).json({ status: false, message: "Patient not found" });
+          }
+          return res.status(200).json({ status: true, message: "Profile updated", patient: updated });
+        } catch (error) {
+          return res.status(500).json({ status: false, message: "Server error" });
+        }
+      }
+
+      async changeMyPassword(req, res) {
+        try {
+          const { oldPassword, newPassword } = req.body;
+          if (!oldPassword || !newPassword) {
+            return res.status(400).json({ status: false, message: "Old and new password required" });
+          }
+          if (newPassword.length < 8) {
+            return res.status(400).json({ status: false, message: "New password must be at least 8 characters" });
+          }
+          const patient = await Patient.findById(req.user.id);
+          if (!patient) return res.status(404).json({ status: false, message: "Patient not found" });
+    
+          const isMatch = await bcryptjs.compare(oldPassword, patient.password);
+          if (!isMatch) return res.status(400).json({ status: false, message: "Old password is incorrect" });
+    
+          const salt = await bcryptjs.genSalt(10);
+          patient.password = await bcryptjs.hash(newPassword, salt);
+          await patient.save();
+          return res.status(200).json({ status: true, message: "Password changed successfully" });
+        } catch (error) {
+          return res.status(500).json({ status: false, message: "Server error" });
+        }
+      }
 
 }
 

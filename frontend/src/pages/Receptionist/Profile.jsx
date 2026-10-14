@@ -1,19 +1,17 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useSelector } from "react-redux";
 import Card from "../../components/Card";
 import Input from "../../components/Input";
 import Button from "../../components/Button";
+import {
+  getMyReceptionistProfile, updateMyReceptionistProfile, changeReceptionistPassword,
+} from "../../api/receptionistApi";
 
 function ReceptionistProfile() {
   const { user } = useSelector(s => s.auth);
 
-  const [data, setData] = useState({
-    name: user?.name || "Receptionist",
-    email: user?.email || "",
-    phone: "9876543210",
-    address: "MG Road, Bangalore, 560001",
-  });
-  const [photo, setPhoto] = useState(null);
+  const [data, setData] = useState({ name: "", email: "", phone: "" });
+  const [loading, setLoading] = useState(true);
   const [showEditForm, setShowEditForm] = useState(false);
   const [showPasswordModal, setShowPasswordModal] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -21,58 +19,68 @@ function ReceptionistProfile() {
   const [pwd, setPwd] = useState({ current: "", newPassword: "", confirm: "" });
   const [pwdError, setPwdError] = useState("");
 
-  const handlePhotoChange = e => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    if (file.size > 2 * 1024 * 1024) {
-      alert("Photo 2MB se chhoti honi chahiye");
-      return;
-    }
-    setPhoto(URL.createObjectURL(file));
-  };
+  // ---------------- FETCH ----------------
+  useEffect(() => {
+    const fetchProfile = async () => {
+      try {
+        const res = await getMyReceptionistProfile();
+        const r = res.data.receptionist;
+        setData({
+          name: r.name || "",
+          email: r.email || "",
+          phone: r.phone || "",
+        });
+      } catch (err) {
+        console.error("Profile fetch failed:", err.message);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchProfile();
+  }, []);
 
   const handleChange = e => setData({ ...data, [e.target.name]: e.target.value });
 
+  // ---------------- SAVE ----------------
   const handleSaveProfile = async () => {
     setSaving(true);
     try {
-      // ⏳ Phase 6: PATCH /api/receptionist/me
-      console.log("Receptionist profile update:", data);
-      alert("Profile updated (dummy)");
+      const res = await updateMyReceptionistProfile({
+        name: data.name.trim(),
+        phone: data.phone.trim(),
+      });
+      const r = res.data.receptionist;
+      setData(d => ({ ...d, name: r.name, phone: r.phone }));
+      alert("Profile updated ✅");
       setShowEditForm(false);
+    } catch (err) {
+      alert(err.message || "Update failed");
     } finally {
       setSaving(false);
     }
   };
 
+  // ---------------- CHANGE PASSWORD ----------------
   const handleChangePassword = async e => {
     e.preventDefault();
-    if (pwd.newPassword.length < 6) {
-      setPwdError("New password min 6 characters");
-      return;
-    }
-    if (pwd.newPassword !== pwd.confirm) {
-      setPwdError("New passwords do not match");
-      return;
-    }
+    if (pwd.newPassword.length < 8) return setPwdError("New password min 8 characters");
+    if (pwd.newPassword !== pwd.confirm) return setPwdError("New passwords do not match");
     setPwdError("");
     try {
-      // ⏳ Phase 6: PATCH /api/receptionist/change-password
-      console.log("Change password:", pwd);
-      alert("Password changed (dummy)");
+      await changeReceptionistPassword({
+        email: data.email || user?.email,   // backend email-based hai
+        oldPassword: pwd.current,
+        newPassword: pwd.newPassword,
+      });
+      alert("Password changed ✅");
       setShowPasswordModal(false);
       setPwd({ current: "", newPassword: "", confirm: "" });
     } catch (err) {
-      setPwdError(err?.response?.data?.message || "Failed");
+      setPwdError(err.message || "Failed");
     }
   };
 
-  const photoUrl = photo || user?.photoUrl || null;
-
-  const detailRows = [
-    { label: "Phone", value: data.phone },
-    { label: "Address", value: data.address },
-  ].filter(r => r.value);
+  if (loading) return <div className="p-6 text-gray-500">Loading profile...</div>;
 
   return (
     <div className="p-6 max-w-3xl">
@@ -81,27 +89,20 @@ function ReceptionistProfile() {
       {/* PHOTO + NAME */}
       <Card className="mb-6">
         <div className="flex items-center gap-6">
-          <div className="relative">
-            {photoUrl ? (
-              <img src={photoUrl} alt="profile" className="w-24 h-24 rounded-full object-cover border-2 border-gray-200" />
-            ) : (
-              <div className="w-24 h-24 rounded-full bg-blue-100 flex items-center justify-center text-3xl font-bold text-blue-600">
-                {data.name?.charAt(0)?.toUpperCase() || "?"}
-              </div>
-            )}
-            <label className="absolute -bottom-1 -right-1 bg-white border border-gray-200 rounded-full p-1.5 cursor-pointer shadow hover:bg-gray-50" title="Change photo">
-              📷
-              <input type="file" accept="image/*" onChange={handlePhotoChange} className="hidden" />
-            </label>
+          <div className="w-24 h-24 rounded-full bg-blue-100 flex items-center justify-center text-3xl font-bold text-blue-600">
+            {data.name?.charAt(0)?.toUpperCase() || "?"}
           </div>
           <div className="flex-1">
             <h2 className="text-xl font-semibold text-gray-800">{data.name}</h2>
             <p className="text-sm text-gray-400">{data.email}</p>
+            <span className="inline-block mt-1 px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+              {data.active !== false ? "ACTIVE" : "INACTIVE"}
+            </span>
           </div>
         </div>
       </Card>
 
-      {/* DETAILS (read-only) */}
+      {/* DETAILS */}
       {!showEditForm && (
         <Card>
           <div className="flex justify-between items-center mb-4">
@@ -112,12 +113,18 @@ function ReceptionistProfile() {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-y-4 gap-x-8">
-            {detailRows.map(r => (
-              <div key={r.label}>
-                <p className="text-xs text-gray-400">{r.label}</p>
-                <p className="text-sm text-gray-800">{r.value}</p>
-              </div>
-            ))}
+            <div>
+              <p className="text-xs text-gray-400">Name</p>
+              <p className="text-sm text-gray-800">{data.name || "—"}</p>
+            </div>
+            <div>
+              <p className="text-xs text-gray-400">Email</p>
+              <p className="text-sm text-gray-800">{data.email || "—"}</p>
+            </div>
+            <div>
+              <p className="text-xs text-gray-400">Phone</p>
+              <p className="text-sm text-gray-800">{data.phone || "—"}</p>
+            </div>
           </div>
 
           <div className="mt-6 pt-4 border-t border-gray-100">
@@ -138,11 +145,8 @@ function ReceptionistProfile() {
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <Input label="Name" name="name" value={data.name} onChange={handleChange} />
-            <Input label="Email" name="email" value={data.email} disabled />
+            <Input label="Email" value={data.email} disabled />
             <Input label="Phone" name="phone" value={data.phone} onChange={handleChange} />
-            <div className="md:col-span-2">
-              <Input label="Address" name="address" value={data.address} onChange={handleChange} />
-            </div>
           </div>
 
           <div className="flex gap-2 mt-4">

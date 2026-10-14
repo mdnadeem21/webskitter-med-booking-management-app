@@ -1,4 +1,3 @@
-// src/components/Input.jsx — label + error ke saath
 function Input({ label, error, ...props }) {
     return (
       <div className="mb-4">
