@@ -40,13 +40,9 @@ const appointmentSchema = new Schema(
             default: () => `APT-${Date.now()}-${Math.random().toString(36).slice(2, 7).toUpperCase()}`,
         },
         isDeleted: { type: Boolean, default: false },
-        // cancelledBy: { type: Types.ObjectId, ref: "manage-med-user", default: null },
-        // cancellationReason: { type: String, maxlength: 300, default: null },
-        // rescheduledFrom: { type: Types.ObjectId, ref: "Appointment", default: null },
-        // markedNoShowBy: { type: Types.ObjectId, ref: "User", default: null },
     },
     { timestamps: true }
 );
 
-const Appointment = mongoose.model('Appointment', appointmentSchema);
+const Appointment = mongoose.model('manage-med-appointment', appointmentSchema);
 module.exports = Appointment

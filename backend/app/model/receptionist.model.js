@@ -2,7 +2,7 @@ const mongoose = require("mongoose");
 
 const receptionistSchema = new mongoose.Schema(
   {
-    // src/models/receptionist.model.js
+    
     name: { 
         type: String, 
         required: true, 
@@ -24,7 +24,7 @@ const receptionistSchema = new mongoose.Schema(
         type: String, 
         required: true,
     },
-    avatar:{
+    profileImage:{
         type: String,
         default: "receptionist.jpg"
     },
@@ -32,10 +32,6 @@ const receptionistSchema = new mongoose.Schema(
         type: String, 
         default: "receptionist", 
         enum: ["receptionist"] 
-    },
-    mustChangePassword: { 
-        type: Boolean, 
-        default: true 
     },
     isActive: { 
         type: Boolean, 

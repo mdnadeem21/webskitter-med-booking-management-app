@@ -68,6 +68,9 @@ const clinicRoutes=require('./app/route/clinic.route');
 const departmentRoutes=require('./app/route/department.route');
 const appointmentRoutes=require('./app/route/appointment.route');
 const patientRoutes=require('./app/route/patient.route');
+const receptionistRoutes=require('./app/route/receptionist.route');
+const adminRoutes=require('./app/route/admin.route');
+
 
 app.use('/api/auth',authRoutes);
 app.use('/api/doctors',doctorRoutes);
@@ -75,8 +78,8 @@ app.use('/api/clinics',clinicRoutes);
 app.use('/api/departments',departmentRoutes);
 app.use('/api/appointments',appointmentRoutes);
 app.use('/api/patients',patientRoutes);
-
-
+app.use('/api/receptionists',receptionistRoutes);
+app.use('/api/admin',adminRoutes);
 
 const PORT=process.env.PORT || 8080;
 app.listen(PORT,(error)=>{

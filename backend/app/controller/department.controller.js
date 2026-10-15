@@ -30,11 +30,11 @@ class departmentController{
         async getDepartments(req, res) {
             try {
                 const departments = await Department.find({ isDeleted: false });
-                if (departments.length === 0) {
-                    return res.status(404).json({ 
-                        status: false,
-                        message: 'No departments found' });
-                }
+                // if (departments.length === 0) {
+                //     return res.status(404).json({ 
+                //         status: false,
+                //         message: 'No departments found' });
+                // }
                 res.status(200).json({
                     status: true,
                     size: departments.length,
@@ -78,6 +78,10 @@ class departmentController{
                         status: false,
                         message: 'Name or description are required to update' });
                 }
+                if (name) {
+                    const dup = await Department.findOne({ name: name.trim(), isDeleted: false, _id: { $ne: deptId } });
+                    if (dup) return res.status(400).json({ status: false, message: "Department with this name already exists" });
+                  }
                 const department = await Department.findById(deptId);
 
                 if (!department) {

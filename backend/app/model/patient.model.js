@@ -3,18 +3,6 @@ const mongoose = require("mongoose");
 const { Schema } = mongoose;
 
 const patientSchema = new Schema({
-  // userId: {
-  //   type: Schema.Types.ObjectId,
-  //   ref: "manage-med-user",
-  //   required: true,
-  //   unique: true,
-  // },
-  // clinicId: {
-  //   type: Schema.Types.ObjectId,
-  //   ref: "manage-med-clinic",
-  //   required: true,
-  //   index: true,
-  // },
   name: {
     type: String,
     required: true,
@@ -64,13 +52,9 @@ const patientSchema = new Schema({
     phone: { type: String, match: [/^[6-9][0-9]{9}$/, "Invalid phone"] },
     relation: { type: String, trim: true },
   },
-  allergies: { type: [String], default: [] },
-  previousDiseases: { type: [String], default: [] },
-  currentMedicines: { type: [String], default: [] },
-  previousSurgeries: { type: [String], default: [] },
   isVerified: { 
     type: Boolean, 
-    default: false 
+    default: true 
   },
   role:{
     type: String,
@@ -85,6 +69,8 @@ const patientSchema = new Schema({
     type: Boolean, 
     default: false 
   },
+},{
+  timestamps: true,
 });
 
 const Patient = mongoose.model("manage-med-patient", patientSchema);

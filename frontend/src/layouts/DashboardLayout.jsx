@@ -1,10 +1,10 @@
-// src/layouts/DashboardLayout.jsx
 import { NavLink, Outlet } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
 import { logout } from "../store/slices/authSlice";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
+import NotificationBell from "../components/NotificationBell";
 
-// Har role ka apna menu — role.json jaisa concept, frontend version
+
 const MENU_BY_ROLE = {
     patient: [
       { to: "/patient", label: "Dashboard", end: true },
@@ -21,7 +21,7 @@ const MENU_BY_ROLE = {
       { to: "/receptionist", label: "Dashboard", end: true },
       { to: "/receptionist/appointments", label: "Appointments" },
       { to: "/receptionist/patients", label: "Patients" },
-      { to: "/receptionist/Profile" },
+      { to: "/receptionist/Profile", label: "Profile" },
     ],
     admin: [
       { to: "/admin", label: "Dashboard", end: true },
@@ -29,6 +29,9 @@ const MENU_BY_ROLE = {
       { to: "/admin/receptionists", label: "Receptionists" },
       { to: "/admin/patients", label: "Patients" },
       { to: "/admin/appointments", label: "Appointments" },
+      { to: "/admin/profile", label: "Profile" },
+      { to: "/admin/clinic",label:"Clinic"},
+      { to : "/admin/department",label:"Department"},
     ],
   };
 
@@ -44,6 +47,24 @@ function DashboardLayout() {
   };
 
   return (
+
+    <div className="flex-1 flex flex-col">
+  {/* HEADER */}
+  <header className="bg-white border-b border-gray-200 px-6 py-3 flex items-center justify-between">
+    <div>
+      <p className="text-sm text-gray-500">Welcome back 👋</p>
+      <p className="font-semibold text-gray-800">{user?.name} ({user?.role})</p>
+    </div>
+    <div className="flex items-center gap-3">
+      <NotificationBell/>
+      <Link to="/" className="text-sm text-gray-500 hover:text-blue-600">Home</Link>
+      <span className="text-gray-300">|</span>
+      <button onClick={handleLogout} className="text-sm text-red-600 hover:underline">
+        Logout
+      </button>
+    </div>
+  </header>
+
     <div className="min-h-screen bg-gray-100 flex">
       {/* SIDEBAR */}
       <aside className="w-64 bg-white border-r border-gray-200 p-4 flex flex-col">
@@ -79,6 +100,7 @@ function DashboardLayout() {
       <main className="flex-1">
         <Outlet />
       </main>
+    </div>
     </div>
   );
 }
